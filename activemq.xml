@@ -1,6 +1,5 @@
 <beans
   xmlns="http://www.springframework.org/schema/beans"
-  xmlns:amq="http://activemq.apache.org/schema/core"
   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
   http://activemq.apache.org/schema/core http://activemq.apache.org/schema/core/activemq-core.xsd">
@@ -12,11 +11,20 @@
         </property>
     </bean>
 
+  <!-- Allows accessing the server log -->
+  <bean id="logQuery" class="io.fabric8.insight.log.log4j.log4jLogQuery" lazy-init="false" scope="singleton" init-method="start" destroy-method="stop"> </bean>
     <!--
         The <broker> element is used to configure the ActiveMQ broker.
     -->
-    <broker xmlns="http://activemq.apache.org/schema/core" brokerName="localhost" dataDirectory="${activemq.data}">
-
+    <broker xmlns="http://activemq.apache.org/schema/core" brokerName="localhost" dataDirectory="${activemq.data}" schedulePeriodForDestinationPurge="5000">
+        <destinations>
+          <topic physicalName="myApplication.users" />
+          <topic physicalName="ActiveMQ.Advisory.Producer.Topic.myApplication.users" />
+          <topic physicalName="ActiveMQ.Advisory.Consumer.Topic.myApplication.users" />
+          <topic physicalName="myApplication.apps" />
+          <topic physicalName="ActiveMQ.Advisory.Producer.Topic.myApplication.apps" />
+          <topic physicalName="ActiveMQ.Advisory.Consumer.Topic.myApplication.apps" />
+        </destinations>
         <!--
             For better performances use VM cursor and small memory limit.
             For more information, see:
@@ -31,7 +39,7 @@
         <destinationPolicy>
             <policyMap>
               <policyEntries>
-                <policyEntry topic=">" producerFlowControl="true">
+                <policyEntry topic=">">
                     <!-- The constantPendingMessageLimitStrategy is used to prevent
                          slow topic consumers to block producers and affect other consumers
                          by limiting the number of messages that are retained
@@ -44,7 +52,7 @@
                     <constantPendingMessageLimitStrategy limit="1000"/>
                   </pendingMessageLimitStrategy>
                 </policyEntry>
-                <policyEntry queue=">" producerFlowControl="true" memoryLimit="1mb">
+                <policyEntry queue=">" gcInactiveDestinations="true" inactiveTimeOutBeforeGC="1000">
                   <!-- Use VM cursor for better latency
                        For more information, see:
 
@@ -106,7 +114,7 @@
           <systemUsage>
             <systemUsage>
                 <memoryUsage>
-                    <memoryUsage limit="64 mb"/>
+                    <memoryUsage percentOfJvmHeap="70"/>
                 </memoryUsage>
                 <storeUsage>
                     <storeUsage limit="100 gb"/>
@@ -127,6 +135,9 @@
             <!-- DOS protection, limit concurrent connections to 1000 and frame size to 100MB -->
             <transportConnector name="openwire" uri="tcp://0.0.0.0:61616?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
             <transportConnector name="amqp" uri="amqp://0.0.0.0:5672?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="stomp" uri="stomp://0.0.0.0:61613?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="mqtt" uri="mqtt://0.0.0.0:1883?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
+            <transportConnector name="ws" uri="ws://0.0.0.0:61614?maximumConnections=1000&amp;wireFormat.maxFrameSize=104857600"/>
         </transportConnectors>
 
         <!-- destroy the spring context on shutdown to stop jetty -->
@@ -134,6 +145,27 @@
             <bean xmlns="http://www.springframework.org/schema/beans" class="org.apache.activemq.hooks.SpringContextHook" />
         </shutdownHooks>
 
+        <plugins>
+          <simpleAuthenticationPlugin>
+            <users>
+              <authenticationUser userName="myApplicationAdmin" password="appapp" groups="admins"/>
+              <authenticationUser userName="myApplicationUser" password="appapp" groups="users"/>
+              <authenticationUser userName="myApplicationService" password="appapp" groups="services"/>
+            </users>
+          </simpleAuthenticationPlugin>
+          
+          <authorizationPlugin>
+            <map>
+              <authorizationMap>
+                <authorizationEntries>
+                  <authorizationEntry queue=">" write="users,services" read="users,services" admin="users,services,admins"/>
+                  <authorizationEntry queue="ActiveMq.Advisory.>" write="services" read="services" admin="users,services,admins"/>
+                  <authorizationEntry queue="mosaiq.>" write="services" read="services" admin="admins"/>
+                </authorizationEntries>
+              </authorizationMap>
+            </map>
+          </authorizationPlugin>
+      </plugins>
     </broker>
 
     <!--
