@@ -160,7 +160,7 @@
                 <authorizationEntries>
                   <authorizationEntry queue=">" write="users,services" read="users,services" admin="users,services,admins"/>
                   <authorizationEntry queue="ActiveMq.Advisory.>" write="services" read="services" admin="users,services,admins"/>
-                  <authorizationEntry queue="mosaiq.>" write="services" read="services" admin="admins"/>
+                  <authorizationEntry queue="myApplication.>" write="services" read="services" admin="admins"/>
                 </authorizationEntries>
               </authorizationMap>
             </map>
